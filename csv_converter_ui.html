@@ -460,7 +460,7 @@
   <div class="panel">
     <div class="panel-title">Servidor API</div>
     <div class="config-row">
-      <input type="text" id="api-base" value="http://localhost:8001" placeholder="http://localhost:8001" />
+      <input type="text" id="api-base" value="http://localhost:8000" placeholder="http://localhost:8000" />
       <button class="btn-health" onclick="checkHealth()">
         Verificar conexión <span class="health-dot" id="health-dot"></span>
       </button>
@@ -575,7 +575,7 @@ function addFile() {
       <label>Nulos <input type="text" id="nulls-${id}" value=",NULL,null,NA,N/A,na,n/a" style="width:220px" /></label>
     </div>
 
-    <div class="schema-label" style="margin-top:0.75rem;">Schema overrides <span style="font-weight:400;font-style:italic;">(opcional)</span></div>
+    <div class="schema-label" style="margin-top:0.75rem;">Tipo de dato por columna <span style="font-weight:400;font-style:italic;">(opcional)</span></div>
     <div id="schema-${id}"></div>
     <button class="btn-add-col" onclick="addSchemaRow(${id})">+ columna / tipo</button>
 
