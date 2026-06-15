@@ -290,13 +290,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# ---------------------------------------------------------------------------
+# Se agregó este código para que la API se conectara de manera correcta con 
+# el front
+# ---------------------------------------------------------------------------
 from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"], # acepta peticiones de CUALQUIER origen (incluyendo file://)
+    allow_methods=["*"], # acepta GET, POST, PUT, DELETE... todos los métodos HTTP
+    allow_headers=["*"], # acepta cualquier encabezado en la petición
 )
 
 @app.get("/health", tags=["utilidades"])
