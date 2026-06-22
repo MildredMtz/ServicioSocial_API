@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV → Parquet | Explorador</title>
+  <style>
+    :root {
+      --bg: #0f0f14;
+      --surface: #18181f;
+      --surface2: #22222d;
+      --border: #2e2e3e;
+      --accent: #a78bfa;
+      --accent2: #34d399;
+      --accent3: #f472b6;
+      --text: #e2e0f0;
+      --muted: #7a7a9a;
+      --error: #f87171;
+      --warn: #fbbf24;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* HEADER */
+    header { text-align: center; margin-bottom: 2.5rem; }
+    header .badge {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      color: #fff; font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.3rem 0.85rem; border-radius: 999px; margin-bottom: 1rem;
+    }
+    header h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; line-height: 1.15;
+    }
+    header p { color: var(--muted); margin-top: 0.6rem; font-size: 0.95rem; }
+
+    .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+
+    /* PANEL */
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem 1.5rem;
+    }
+    .panel-title {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 1rem;
+    }
+
+    /* SERVER ROW */
+    .server-row { display: flex; gap: 0.75rem; align-items: center; }
+    .server-row input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-family: var(--font-mono);
+      font-size: 0.9rem; padding: 0.55rem 0.85rem; outline: none;
+      transition: border-color 0.15s;
+    }
+    .server-row input:focus { border-color: var(--accent); }
+    .btn-sm {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); cursor: pointer;
+      font-size: 0.85rem; padding: 0.55rem 1rem; white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn-sm:hover { background: var(--border); }
+    .health-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); margin-left: 0.4rem; transition: background 0.3s;
+    }
+    .health-dot.ok   { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+    .health-dot.fail { background: var(--error);   box-shadow: 0 0 6px var(--error); }
+
+    /* FOLDER INPUT */
+    .folder-row { display: flex; gap: 0.75rem; align-items: center; }
+    .folder-row input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-family: var(--font-mono);
+      font-size: 0.88rem; padding: 0.55rem 0.85rem; outline: none;
+      transition: border-color 0.15s;
+    }
+    .folder-row input:focus { border-color: var(--accent); }
+    .btn-explore {
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      border: none; border-radius: 6px; color: #fff; cursor: pointer;
+      font-size: 0.88rem; font-weight: 700; padding: 0.6rem 1.2rem;
+      white-space: nowrap; transition: opacity 0.15s;
+    }
+    .btn-explore:hover { opacity: 0.88; }
+    .btn-explore:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* BREADCRUMB */
+    #breadcrumb {
+      display: none; flex-wrap: wrap; gap: 0.4rem;
+      align-items: center; margin-bottom: 1rem;
+    }
+    .crumb {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 5px; color: var(--accent); cursor: pointer;
+      font-family: var(--font-mono); font-size: 0.75rem;
+      padding: 0.2rem 0.6rem; transition: background 0.15s;
+    }
+    .crumb:hover { background: var(--border); }
+    .crumb.current { color: var(--text); cursor: default; }
+    .crumb-sep { color: var(--muted); font-size: 0.8rem; }
+
+    /* SUBFOLDERS */
+    #subfolder-section { display: none; margin-bottom: 1rem; }
+    .subfolder-title {
+      font-size: 0.7rem; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.07em; margin-bottom: 0.5rem;
+    }
+    #subfolder-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .subfolder-chip {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); cursor: pointer;
+      font-size: 0.82rem; padding: 0.35rem 0.8rem;
+      display: flex; align-items: center; gap: 0.4rem;
+      transition: border-color 0.15s;
+    }
+    .subfolder-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .subfolder-chip .icon { font-size: 0.95rem; }
+
+    /* CSV TABLE */
+    #csv-section { display: none; }
+    .csv-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .csv-count { font-size: 0.82rem; color: var(--muted); }
+    .bulk-actions { display: flex; gap: 0.5rem; }
+    .btn-bulk {
+      background: none; border: 1px solid var(--border); border-radius: 5px;
+      color: var(--muted); cursor: pointer; font-size: 0.78rem;
+      padding: 0.3rem 0.75rem; transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-bulk:hover { border-color: var(--accent); color: var(--accent); }
+
+    #csv-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .csv-row {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.75rem 1rem;
+      display: flex; align-items: center; gap: 0.75rem;
+      transition: border-color 0.2s, opacity 0.2s;
+    }
+    .csv-row.excluded { opacity: 0.4; }
+    .csv-row.running  { border-color: var(--accent); }
+    .csv-row.done     { border-color: var(--accent2); }
+    .csv-row.errored  { border-color: var(--error); }
+    .csv-row.skipped  { border-color: var(--border); opacity: 0.5; }
+
+    .csv-check {
+      width: 17px; height: 17px; accent-color: var(--accent);
+      cursor: pointer; flex-shrink: 0;
+    }
+    .csv-name {
+      flex: 1; font-family: var(--font-mono); font-size: 0.85rem;
+      word-break: break-all;
+    }
+    .csv-name .full-path {
+      display: block; font-size: 0.7rem; color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .tag {
+      font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.55rem;
+      border-radius: 999px; white-space: nowrap; flex-shrink: 0;
+    }
+    .tag.has-parquet { background: rgba(52,211,153,0.12); color: var(--accent2); border: 1px solid rgba(52,211,153,0.3); }
+    .tag.pending     { background: rgba(167,139,250,0.1); color: var(--accent);  border: 1px solid rgba(167,139,250,0.25); }
+    .tag.running     { background: rgba(167,139,250,0.15); color: var(--accent); border: 1px solid var(--accent); }
+    .tag.done        { background: rgba(52,211,153,0.15); color: var(--accent2); border: 1px solid var(--accent2); }
+    .tag.errored     { background: rgba(248,113,113,0.12); color: var(--error);  border: 1px solid rgba(248,113,113,0.3); }
+
+    .csv-progress-wrap { flex: 1; min-width: 120px; display: none; }
+    .csv-row.running .csv-progress-wrap,
+    .csv-row.done    .csv-progress-wrap,
+    .csv-row.errored .csv-progress-wrap { display: block; }
+    .mini-bar-bg { background: var(--border); border-radius: 999px; height: 4px; overflow: hidden; }
+    .mini-bar-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent3));
+      width: 0%; transition: width 0.4s ease;
+    }
+    .csv-row.done    .mini-bar-fill { background: var(--accent2); width: 100%; }
+    .csv-row.errored .mini-bar-fill { background: var(--error); }
+    .mini-stats { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; font-family: var(--font-mono); }
+    .csv-row.done    .mini-stats { color: var(--accent2); }
+    .csv-row.errored .mini-stats { color: var(--error); }
+
+    /* SCHEMA PANEL (global) */
+    #schema-panel { display: none; }
+    .schema-toggle {
+      background: none; border: 1px dashed var(--border); border-radius: 6px;
+      color: var(--muted); cursor: pointer; font-size: 0.82rem;
+      padding: 0.45rem 1rem; transition: border-color 0.15s, color 0.15s;
+      margin-bottom: 0.75rem;
+    }
+    .schema-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    #schema-rows { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.5rem; }
+    .schema-row-item { display: flex; gap: 0.5rem; align-items: center; }
+    .schema-row-item input {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 5px; color: var(--text); font-family: var(--font-mono);
+      font-size: 0.8rem; padding: 0.3rem 0.6rem; outline: none;
+    }
+    .schema-row-item input:focus { border-color: var(--accent); }
+    .schema-row-item input.col-name { flex: 1.3; }
+    .schema-row-item input.col-type { flex: 0.8; }
+    .btn-rm-col {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: 0.9rem; padding: 0 0.3rem;
+      transition: color 0.15s;
+    }
+    .btn-rm-col:hover { color: var(--error); }
+    .btn-add-col {
+      background: none; border: 1px dashed var(--border); border-radius: 5px;
+      color: var(--muted); cursor: pointer; font-size: 0.78rem;
+      padding: 0.3rem 0.7rem; transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-add-col:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* EXTRA PARAMS */
+    .extra-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-top: 0.75rem; }
+    .extra-row label { font-size: 0.78rem; color: var(--muted); display: flex; gap: 0.4rem; align-items: center; }
+    .extra-row input {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 5px; color: var(--text); font-family: var(--font-mono);
+      font-size: 0.8rem; padding: 0.28rem 0.55rem; outline: none;
+    }
+
+    /* RUN BUTTON */
+    #btn-run {
+      width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent3));
+      border: none; border-radius: var(--radius); color: #fff; cursor: pointer;
+      font-size: 1rem; font-weight: 700; padding: 0.85rem 1.5rem;
+      letter-spacing: 0.02em; transition: opacity 0.15s, transform 0.1s;
+    }
+    #btn-run:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    #btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* LOG */
+    #log {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); font-family: var(--font-mono);
+      font-size: 0.78rem; color: var(--muted); padding: 1rem 1.1rem;
+      max-height: 180px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 0.2rem;
+    }
+    .ll { white-space: pre-wrap; word-break: break-all; }
+    .ll.ok     { color: var(--accent2); }
+    .ll.err    { color: var(--error); }
+    .ll.warn   { color: var(--warn); }
+    .ll.accent { color: var(--accent); }
+
+    /* SUMMARY */
+    #summary { display: none; }
+    #summary h3 {
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 0.75rem;
+    }
+    .sum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; }
+    .sum-card { background: var(--surface2); border-radius: 8px; padding: 0.75rem; text-align: center; }
+    .sum-card .val { font-size: 1.4rem; font-weight: 800; font-family: var(--font-mono); }
+    .sum-card .lbl { font-size: 0.68rem; color: var(--muted); margin-top: 0.2rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">Explorador de carpetas</div>
+  <h1>CSV → Parquet</h1>
+  <p>Selecciona una carpeta, elige los archivos y convierte en lote</p>
+</header>
+
+<div class="container">
+
+  <!-- SERVIDOR -->
+  <div class="panel">
+    <div class="panel-title">Servidor API</div>
+    <div class="server-row">
+      <input type="text" id="api-base" value="http://localhost:8000" />
+      <button class="btn-sm" onclick="checkHealth()">
+        Verificar <span class="health-dot" id="hdot"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- EXPLORADOR -->
+  <div class="panel">
+    <div class="panel-title">Carpeta a explorar</div>
+    <div class="folder-row">
+      <input type="text" id="folder-input"
+             placeholder="C:\Users\Mildred\OneDrive\Escritorio\ServicioSocial" />
+      <button class="btn-explore" id="btn-explore" onclick="exploreFolder()">Explorar →</button>
+    </div>
+
+    <!-- breadcrumb -->
+    <div id="breadcrumb" style="margin-top:1rem;"></div>
+
+    <!-- subcarpetas -->
+    <div id="subfolder-section">
+      <div class="subfolder-title">Subcarpetas</div>
+      <div id="subfolder-list"></div>
+    </div>
+
+    <!-- lista csvs -->
+    <div id="csv-section">
+      <div class="csv-header">
+        <span class="csv-count" id="csv-count"></span>
+        <div class="bulk-actions">
+          <button class="btn-bulk" onclick="selectAll(true)">Seleccionar todos</button>
+          <button class="btn-bulk" onclick="selectAll(false)">Deseleccionar todos</button>
+        </div>
+      </div>
+      <div id="csv-list"></div>
+    </div>
+
+    <div id="empty-msg" style="display:none; color:var(--muted); font-size:0.85rem; margin-top:0.75rem;">
+      No se encontraron archivos CSV en esta carpeta.
+    </div>
+  </div>
+
+  <!-- OPCIONES DE CONVERSIÓN -->
+  <div class="panel" id="schema-panel">
+    <div class="panel-title">Opciones de conversión</div>
+
+    <button class="schema-toggle" onclick="toggleSchema()">
+      <span id="schema-toggle-icon">▸</span> Tipo de dato por columna (opcional)
+    </button>
+    <div id="schema-body" style="display:none;">
+      <div id="schema-rows"></div>
+      <button class="btn-add-col" onclick="addSchemaRow()">+ agregar columna</button>
+    </div>
+
+    <div class="extra-row">
+      <label>Separador <input type="text" id="sep" value="," style="width:50px" /></label>
+      <label>Valores nulos <input type="text" id="nulls" value=",NULL,null,NA,N/A,na,n/a" style="width:230px" /></label>
+    </div>
+  </div>
+
+  <!-- BOTÓN CONVERTIR -->
+  <button id="btn-run" style="display:none;" onclick="runAll()">▶ Convertir seleccionados</button>
+
+  <!-- LOG -->
+  <div class="panel" style="padding:0;">
+    <div class="panel-title" style="padding:1rem 1.5rem 0;">Registro de actividad</div>
+    <div id="log"></div>
+  </div>
+
+  <!-- RESUMEN -->
+  <div class="panel" id="summary">
+    <h3>Resumen final</h3>
+    <div class="sum-grid" id="sum-grid"></div>
+  </div>
+
+</div>
+
+<script>
+// ─── Estado ───────────────────────────────────────────────────────────────────
+const csvFiles = {};   // path → { name, has_parquet, status, result }
+let currentFolder = '';
+const folderHistory = [];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const api = () => document.getElementById('api-base').value.replace(/\/$/, '');
+
+function log(msg, type = '') {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  const t = new Date().toLocaleTimeString('es-MX', { hour12: false });
+  d.className = `ll ${type}`;
+  d.textContent = `[${t}] ${msg}`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Health ───────────────────────────────────────────────────────────────────
+async function checkHealth() {
+  const dot = document.getElementById('hdot');
+  dot.className = 'health-dot';
+  try {
+    const r = await fetch(`${api()}/health`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    dot.className = 'health-dot ok';
+    log(`Servidor activo — Polars v${d.polars_version || '?'}`, 'ok');
+  } catch(e) {
+    dot.className = 'health-dot fail';
+    log(`No se pudo conectar: ${e.message}`, 'err');
+  }
+}
+
+// ─── Explorar carpeta ─────────────────────────────────────────────────────────
+async function exploreFolder(path) {
+  const input = document.getElementById('folder-input');
+  const target = path || input.value.trim();
+  if (!target) { log('Escribe una ruta de carpeta primero.', 'warn'); return; }
+
+  if (!path) {
+    // nueva búsqueda desde el campo: resetear historial
+    folderHistory.length = 0;
+  }
+
+  const btn = document.getElementById('btn-explore');
+  btn.disabled = true;
+  btn.textContent = 'Explorando…';
+  log(`Explorando: ${target}`, 'accent');
+
+  try {
+    const r = await fetch(`${api()}/explore?path=${encodeURIComponent(target)}`);
+    if (!r.ok) {
+      const d = await r.json();
+      throw new Error(d.detail || `HTTP ${r.status}`);
+    }
+    const data = await r.json();
+
+    currentFolder = data.folder;
+    input.value = currentFolder;
+
+    if (!folderHistory.includes(currentFolder)) folderHistory.push(currentFolder);
+
+    renderBreadcrumb();
+    renderSubfolders(data.subfolders);
+    renderCsvList(data.csvs);
+
+    log(`Encontrados: ${data.csvs.length} CSV, ${data.subfolders.length} subcarpeta(s).`, 'ok');
+  } catch(e) {
+    log(`Error al explorar: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Explorar →';
+  }
+}
+
+// ─── Breadcrumb ───────────────────────────────────────────────────────────────
+function renderBreadcrumb() {
+  const el = document.getElementById('breadcrumb');
+  el.style.display = 'flex';
+  el.innerHTML = '';
+
+  // Separar la ruta en partes
+  const sep = currentFolder.includes('/') ? '/' : '\\';
+  const parts = currentFolder.split(/[\\/]/).filter(Boolean);
+
+  parts.forEach((part, i) => {
+    const fullPath = (currentFolder.startsWith('/') ? '/' : '') +
+                     parts.slice(0, i + 1).join(sep);
+    const isLast = i === parts.length - 1;
+
+    if (i > 0) {
+      const s = document.createElement('span');
+      s.className = 'crumb-sep'; s.textContent = '›';
+      el.appendChild(s);
+    }
+
+    const c = document.createElement('span');
+    c.className = `crumb${isLast ? ' current' : ''}`;
+    c.textContent = part || sep;
+    if (!isLast) c.onclick = () => exploreFolder(fullPath);
+    el.appendChild(c);
+  });
+}
+
+// ─── Subcarpetas ──────────────────────────────────────────────────────────────
+function renderSubfolders(subs) {
+  const sec = document.getElementById('subfolder-section');
+  const list = document.getElementById('subfolder-list');
+  if (!subs.length) { sec.style.display = 'none'; return; }
+
+  sec.style.display = 'block';
+  list.innerHTML = '';
+  subs.forEach(sub => {
+    const name = sub.split(/[\\/]/).pop();
+    const chip = document.createElement('div');
+    chip.className = 'subfolder-chip';
+    chip.innerHTML = `<span class="icon">📁</span>${name}`;
+    chip.title = sub;
+    chip.onclick = () => exploreFolder(sub);
+    list.appendChild(chip);
+  });
+}
+
+// ─── Lista de CSVs ────────────────────────────────────────────────────────────
+function renderCsvList(csvs) {
+  const sec  = document.getElementById('csv-section');
+  const list = document.getElementById('csv-list');
+  const empty = document.getElementById('empty-msg');
+  const schema = document.getElementById('schema-panel');
+  const runBtn = document.getElementById('btn-run');
+  const count  = document.getElementById('csv-count');
+
+  // Limpiar estado anterior
+  Object.keys(csvFiles).forEach(k => delete csvFiles[k]);
+  list.innerHTML = '';
+
+  if (!csvs.length) {
+    sec.style.display = 'none';
+    empty.style.display = 'block';
+    schema.style.display = 'none';
+    runBtn.style.display = 'none';
+    return;
+  }
+
+  empty.style.display = 'none';
+  sec.style.display = 'block';
+  schema.style.display = 'block';
+  runBtn.style.display = 'block';
+
+  // Separar: sin parquet primero, con parquet al final
+  const withoutParquet = csvs.filter(c => !c.has_parquet);
+  const withParquet    = csvs.filter(c =>  c.has_parquet);
+  const ordered = [...withoutParquet, ...withParquet];
+
+  ordered.forEach(csv => {
+    csvFiles[csv.path] = {
+      name: csv.name,
+      has_parquet: csv.has_parquet,
+      status: 'idle',
+      result: null,
+      selected: !csv.has_parquet,   // por defecto: solo los sin parquet
+    };
+    list.appendChild(buildCsvRow(csv));
+  });
+
+  const pending = withoutParquet.length;
+  const already = withParquet.length;
+  count.textContent = `${pending} pendiente(s)${already ? ` · ${already} ya convertido(s) (desmarcados)` : ''}`;
+}
+
+function buildCsvRow(csv) {
+  const row = document.createElement('div');
+  row.className = 'csv-row';
+  row.id = `row-${btoa(csv.path).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}`;
+
+  const checked = !csv.has_parquet;
+  const tagHtml = csv.has_parquet
+    ? `<span class="tag has-parquet">✓ ya convertido</span>`
+    : `<span class="tag pending" id="tag-${safeId(csv.path)}">pendiente</span>`;
+
+  row.innerHTML = `
+    <input type="checkbox" class="csv-check" id="chk-${safeId(csv.path)}"
+           ${checked ? 'checked' : ''}
+           onchange="toggleFile('${escJs(csv.path)}', this.checked)" />
+    <div class="csv-name">
+      ${csv.name}
+      <span class="full-path">${csv.path}</span>
+    </div>
+    ${tagHtml}
+    <div class="csv-progress-wrap" id="prog-${safeId(csv.path)}">
+      <div class="mini-bar-bg"><div class="mini-bar-fill" id="bar-${safeId(csv.path)}"></div></div>
+      <div class="mini-stats" id="stat-${safeId(csv.path)}"></div>
+    </div>
+  `;
+
+  if (csv.has_parquet) row.classList.add('excluded');
+  return row;
+}
+
+function safeId(path) {
+  return path.replace(/[^a-zA-Z0-9]/g, '_');
+}
+function escJs(s) {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function toggleFile(path, checked) {
+  if (csvFiles[path]) {
+    csvFiles[path].selected = checked;
+    const rowId = `row-${btoa(path).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}`;
+    document.getElementById(rowId)?.classList.toggle('excluded', !checked);
+  }
+}
+
+function selectAll(val) {
+  Object.keys(csvFiles).forEach(path => {
+    csvFiles[path].selected = val;
+    const chk = document.getElementById(`chk-${safeId(path)}`);
+    if (chk) chk.checked = val;
+    const rowId = `row-${btoa(path).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}`;
+    document.getElementById(rowId)?.classList.toggle('excluded', !val);
+  });
+}
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
+function toggleSchema() {
+  const body = document.getElementById('schema-body');
+  const icon = document.getElementById('schema-toggle-icon');
+  const visible = body.style.display !== 'none';
+  body.style.display = visible ? 'none' : 'block';
+  icon.textContent = visible ? '▸' : '▾';
+}
+
+function addSchemaRow(col = '', type = '') {
+  const container = document.getElementById('schema-rows');
+  const id = Date.now();
+  const div = document.createElement('div');
+  div.className = 'schema-row-item';
+  div.id = `sr-${id}`;
+  div.innerHTML = `
+    <input class="col-name" type="text" placeholder="NOMBRE_COLUMNA" value="${col}" />
+    <input class="col-type" type="text" placeholder="Int64 / String / Float64" value="${type}" />
+    <button class="btn-rm-col" onclick="document.getElementById('sr-${id}').remove()">✕</button>
+  `;
+  container.appendChild(div);
+}
+
+function getSchema() {
+  const rows = document.querySelectorAll('#schema-rows .schema-row-item');
+  const schema = {};
+  rows.forEach(r => {
+    const inputs = r.querySelectorAll('input');
+    const col = inputs[0].value.trim();
+    const typ = inputs[1].value.trim();
+    if (col && typ) schema[col] = typ;
+  });
+  return Object.keys(schema).length ? schema : null;
+}
+
+// ─── Conversión ───────────────────────────────────────────────────────────────
+function setRowState(path, state) {
+  const rowId = `row-${btoa(path).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_')}`;
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.classList.remove('running','done','errored','skipped');
+  if (state) row.classList.add(state);
+}
+
+function setTag(path, html) {
+  const el = document.getElementById(`tag-${safeId(path)}`);
+  if (el) el.outerHTML = html;
+}
+
+function setBar(path, pct) {
+  const el = document.getElementById(`bar-${safeId(path)}`);
+  if (el) el.style.width = pct + '%';
+}
+
+function setStat(path, txt) {
+  const el = document.getElementById(`stat-${safeId(path)}`);
+  if (el) el.textContent = txt;
+}
+
+async function convertOne(path) {
+  const state = csvFiles[path];
+  if (!state) return;
+
+  state.status = 'running';
+  setRowState(path, 'running');
+  setTag(path, `<span class="tag running" id="tag-${safeId(path)}">convirtiendo…</span>`);
+  setBar(path, 10);
+  log(`▶ ${state.name}`, 'accent');
+
+  const schema = getSchema();
+  const sep    = document.getElementById('sep').value || ',';
+  const nulls  = document.getElementById('nulls').value || ',NULL,null,NA';
+
+  const body = { file_path: path };
+  if (schema) { body.schema_overrides = schema; body.columns = Object.keys(schema); }
+
+  let ticker = setInterval(() => {
+    const bar = document.getElementById(`bar-${safeId(path)}`);
+    if (bar) {
+      const cur = parseFloat(bar.style.width) || 10;
+      if (cur < 85) bar.style.width = Math.min(cur + Math.random() * 3, 85) + '%';
+    }
+  }, 700);
+
+  try {
+    const r = await fetch(
+      `${api()}/convert?separator=${encodeURIComponent(sep)}&null_values=${encodeURIComponent(nulls)}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    );
+    clearInterval(ticker);
+
+    if (!r.ok) {
+      let detail;
+      try { detail = (await r.json()).detail; } catch { detail = await r.text(); }
+      throw new Error(`${r.status}: ${detail}`);
+    }
+
+    const data = await r.json();
+    state.status = 'done';
+    state.result = data;
+
+    setRowState(path, 'done');
+    setBar(path, 100);
+    setTag(path, `<span class="tag done" id="tag-${safeId(path)}">✓ listo</span>`);
+    setStat(path, `${data.rows.toLocaleString('es-MX')} filas · ${data.output_size_mb} MB · ${data.elapsed_seconds}s`);
+    log(`✓ ${state.name} — ${data.rows.toLocaleString('es-MX')} filas | ${data.output_size_mb} MB | ${data.elapsed_seconds}s`, 'ok');
+
+  } catch(e) {
+    clearInterval(ticker);
+    state.status = 'errored';
+    setRowState(path, 'errored');
+    setBar(path, 100);
+    setTag(path, `<span class="tag errored" id="tag-${safeId(path)}">✗ error</span>`);
+    setStat(path, `Error: ${e.message}`);
+    log(`✗ ${state.name} — ${e.message}`, 'err');
+  }
+}
+
+async function runAll() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  document.getElementById('summary').style.display = 'none';
+
+  const selected = Object.keys(csvFiles).filter(p => csvFiles[p].selected);
+  if (!selected.length) {
+    log('No hay archivos seleccionados.', 'warn');
+    btn.disabled = false;
+    return;
+  }
+
+  log(`▶ Convirtiendo ${selected.length} archivo(s) en paralelo…`, 'accent');
+  await Promise.allSettled(selected.map(p => convertOne(p)));
+
+  // Resumen
+  const results = Object.values(csvFiles).map(s => s.result).filter(Boolean);
+  if (results.length) {
+    const totalRows = results.reduce((a, r) => a + r.rows, 0);
+    const totalMB   = results.reduce((a, r) => a + r.output_size_mb, 0);
+    const totalSecs = results.reduce((a, r) => a + r.elapsed_seconds, 0);
+    const errors    = selected.length - results.length;
+
+    document.getElementById('sum-grid').innerHTML = `
+      <div class="sum-card"><div class="val">${results.length}</div><div class="lbl">Convertidos</div></div>
+      <div class="sum-card"><div class="val" style="color:var(--error)">${errors}</div><div class="lbl">Con error</div></div>
+      <div class="sum-card"><div class="val">${totalRows.toLocaleString('es-MX')}</div><div class="lbl">Filas totales</div></div>
+      <div class="sum-card"><div class="val">${totalMB.toFixed(1)} MB</div><div class="lbl">Tamaño total</div></div>
+      <div class="sum-card"><div class="val">${totalSecs.toFixed(1)}s</div><div class="lbl">Tiempo total</div></div>
+    `;
+    document.getElementById('summary').style.display = 'block';
+  }
+
+  log(`■ Proceso terminado. ${results.length}/${selected.length} exitosos.`,
+      results.length === selected.length ? 'ok' : 'warn');
+  btn.disabled = false;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+checkHealth();
+</script>
+</body>
+</html>
