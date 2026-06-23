@@ -303,6 +303,94 @@ app.add_middleware(
     allow_headers=["*"], # acepta cualquier encabezado en la petición
 )
 
+# ---------------------------------------------------------------------------
+# Endpoint: explorar carpeta
+# ---------------------------------------------------------------------------
+
+class FolderItem(BaseModel):
+    path: str
+    name: str
+    has_parquet: bool
+
+class FolderTree(BaseModel):
+    folder: str
+    csvs: list[FolderItem]
+    subfolders: list[str]
+
+class RecursiveFolderTree(BaseModel):
+    root: str
+    folders_scanned: int
+    csvs: list[FolderItem]
+
+@app.get("/explore", response_model=FolderTree, tags=["utilidades"])
+def explore_folder(path: str) -> FolderTree:
+    """
+    Lista los CSV de una carpeta y sus subcarpetas directas.
+    Indica cuáles ya tienen un .parquet generado.
+    """
+    folder = Path(path)
+    if not folder.is_dir():
+        raise HTTPException(status_code=404, detail=f"Carpeta no encontrada: {path}")
+
+    csvs: list[FolderItem] = []
+    subfolders: list[str] = []
+
+    for item in sorted(folder.iterdir()):
+        if item.is_dir():
+            subfolders.append(str(item))
+        elif item.suffix.lower() == ".csv":
+            parquet_path = item.with_suffix(".parquet")
+            csvs.append(FolderItem(
+                path=str(item),
+                name=item.name,
+                has_parquet=parquet_path.exists(),
+            ))
+
+    return FolderTree(folder=str(folder), csvs=csvs, subfolders=subfolders)
+
+@app.get(
+    "/explore_recursive",
+    response_model=RecursiveFolderTree,
+    tags=["utilidades"]
+)
+def explore_recursive(path: str) -> RecursiveFolderTree:
+    """
+    Busca CSV en una carpeta y todas sus subcarpetas.
+    """
+
+    folder = Path(path)
+
+    if not folder.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Carpeta no encontrada: {path}"
+        )
+
+    csvs: list[FolderItem] = []
+    folders = set()
+
+    for csv_file in folder.rglob("*.csv"):
+
+        folders.add(str(csv_file.parent))
+
+        parquet_path = csv_file.with_suffix(".parquet")
+
+        csvs.append(
+            FolderItem(
+                path=str(csv_file),
+                name=csv_file.name,
+                has_parquet=parquet_path.exists()
+            )
+        )
+
+    csvs.sort(key=lambda x: x.path.lower())
+
+    return RecursiveFolderTree(
+        root=str(folder),
+        folders_scanned=len(folders),
+        csvs=csvs
+    )
+
 @app.get("/health", tags=["utilidades"])
 def health() -> dict[str, str]:
     """Verifica que el servidor está en línea."""
