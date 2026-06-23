@@ -48,7 +48,7 @@ Permite localizar automáticamente todos los archivos CSV contenidos dentro de u
 - Resultados encontrados: Lista completa de archivos CSV localizados.
 - Contador de carpetas exploradas: Indica cuántas carpetas fueron revisadas durante la búsqueda.
 
-### Pasos de ejecución
+## Pasos de ejecución
 1. Abrir la página donde tenemos nuestra interfáz gráfica, en este caso hacemos doble click en  csv_converter_ui.html, este nos va a redirigir a una ventana en nuestro navegador. 
 
 2. Abrir una terminal en la ruta donde se encuentra el archivo api.py y client.py, una vez dentro activamos nuestro puerto verificando que sea el mismo que se encuentra en client.py y en el fronted en el apartado "Servidor API" 
