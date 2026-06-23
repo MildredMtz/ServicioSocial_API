@@ -56,12 +56,13 @@ Permite localizar automáticamente todos los archivos CSV contenidos dentro de u
    ```bash
    python -m uvicorn api:app --host 0.0.0.0 --port 8000 --workers 1
 
-Si nuestro puerto se activa de forma correcta tendremos una salida en terminal similar a esta 
-    ```bash
-    INFO:     Started server process [7724]
-    INFO:     Waiting for application startup.
-    INFO:     Application startup complete.
-    INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+- Si nuestro puerto se activa de forma correcta tendremos una salida en terminal similar a esta 
+    
+   ```bash
+   INFO:     Started server process [7724]
+   INFO:     Waiting for application startup.
+   INFO:     Application startup complete.
+   INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 3. Nos dirigimos a la página del navegador que abrimos y en ""Servidor API" pulsamos el botón "Verificar conexión", si la conexión es correcta se pondrá el puntito en color verde.
 En caso de que se ponga en color rojo verificar que los puertos sean los mismos.
